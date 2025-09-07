@@ -106,7 +106,7 @@ func main() {
 	authHandler := NewAuthHandler(authService, streamService)
 	streamHandler := NewStreamHandler(streamService, authService)
 	chatbotHandler := NewChatbotHandler(messageService, chatGPTService, authService, streamService)
-	webhookHandler := NewWebhookHandler(chatGPTService, streamService)
+	webhookHandler := NewWebhookHandler(chatGPTService, streamService, authService)
 	handshakeHandler := NewHandshakeHandler(handshakeService, pubsubService)
 
 	// Setup router

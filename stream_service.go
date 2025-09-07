@@ -121,43 +121,54 @@ func (s *StreamService) CreateAIChatChannel(ctx context.Context, userID string) 
 	if err != nil {
 		return "", fmt.Errorf("failed to create bot user: %w", err)
 	}
-	
+
 	// Create channel ID: ai-chat-{userID}
 	channelID := "ai-chat-" + userID
-	
+
 	// Create the channel with both user and AI assistant as members
 	_, err = s.client.CreateChannel(ctx, "messaging", channelID, userID, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create channel: %w", err)
 	}
-	
+
 	// Get channel reference
 	channel := s.client.Channel("messaging", channelID)
-	
+
 	// Add both user and AI assistant as members
 	_, err = channel.AddMembers(ctx, []string{userID, "ai-assistant"})
 	if err != nil {
 		return "", fmt.Errorf("failed to add members to channel: %w", err)
 	}
-	
-	// Send welcome message
+
+	// Send profile setup message
 	welcomeMsg := &stream.Message{
-		Text: "Hello! I'm your AI assistant. Feel free to ask me anything!",
+		Text: `Hi! I'm Oliver, here to help you meet people in your community.
+
+To help others recognize and find you, I'll need a few details:
+
+1. **Your name** - What should I call you?
+2. **Profile picture** - Share a photo (upload an image)
+3. **Bio** - Tell me a bit about yourself!
+
+You can share this info in any format. For example:
+"Hi! I'm John, and I love coding!"
+
+Just include your name and upload a picture. What would you like to share?`,
 		User: &stream.User{ID: "ai-assistant"},
 	}
-	
+
 	_, err = channel.SendMessage(ctx, welcomeMsg, "ai-assistant")
 	if err != nil {
 		return "", fmt.Errorf("failed to send welcome message: %w", err)
 	}
-	
+
 	return channelID, nil
 }
 
 // SendMessage sends a message to a Stream Chat channel
 func (s *StreamService) SendMessage(cid, text, senderID string) error {
 	ctx := context.Background()
-	
+
 	// Parse CID to extract channel type and ID
 	// CID format is "type:id" (e.g., "messaging:ai-chat-uuid")
 	var channelType, channelID string
@@ -170,18 +181,18 @@ func (s *StreamService) SendMessage(cid, text, senderID string) error {
 			}
 		}
 	}
-	
+
 	// Default to messaging if no type found
 	if channelType == "" {
 		channelType = "messaging"
 		channelID = cid
 	}
-	
+
 	log.Printf("[STREAM] Sending message to channel type: %s, ID: %s", channelType, channelID)
-	
+
 	// Get the channel
 	channel := s.client.Channel(channelType, channelID)
-	
+
 	// Create bot user if doesn't exist
 	botUser := &stream.User{
 		ID:   senderID,
@@ -189,13 +200,13 @@ func (s *StreamService) SendMessage(cid, text, senderID string) error {
 		Role: "admin",
 	}
 	s.client.UpsertUser(ctx, botUser)
-	
+
 	// Send message
 	message := &stream.Message{
 		Text: text,
 		User: &stream.User{ID: senderID},
 	}
-	
+
 	_, err := channel.SendMessage(ctx, message, senderID)
 	if err != nil {
 		log.Printf("[STREAM] Failed to send message: %v", err)
@@ -227,7 +238,7 @@ func (s *StreamService) GetUserChannels(ctx context.Context, userID string) ([]S
 			Type: channel.Type,
 			CID:  channel.CID,
 		}
-		
+
 		// Add members if available
 		if len(channel.Members) > 0 {
 			for _, member := range channel.Members {
@@ -240,7 +251,7 @@ func (s *StreamService) GetUserChannels(ctx context.Context, userID string) ([]S
 				})
 			}
 		}
-		
+
 		userChannels = append(userChannels, streamChannel)
 	}
 
@@ -262,8 +273,36 @@ func (s *StreamService) HasAIChannel(ctx context.Context, userID string) (bool, 
 	if err != nil {
 		return false, err
 	}
-	
+
 	return len(channels.Channels) > 0, nil
+}
+
+// CreateUserMatchChannel creates a private channel between two users
+func (s *StreamService) CreateUserMatchChannel(ctx context.Context, user1ID, user2ID string) (string, error) {
+	// Create channel ID: match-{user1ID}-{user2ID} (sorted for consistency)
+	var channelID string
+	if user1ID < user2ID {
+		channelID = "match-" + user1ID + "-" + user2ID
+	} else {
+		channelID = "match-" + user2ID + "-" + user1ID
+	}
+
+	// Create the channel with both users as members
+	_, err := s.client.CreateChannel(ctx, "messaging", channelID, user1ID, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create match channel: %w", err)
+	}
+
+	// Get channel reference
+	channel := s.client.Channel("messaging", channelID)
+
+	// Add both users as members
+	_, err = channel.AddMembers(ctx, []string{user1ID, user2ID})
+	if err != nil {
+		return "", fmt.Errorf("failed to add members to match channel: %w", err)
+	}
+
+	return channelID, nil
 }
 
 // configureWebhook configures the webhook URL in Stream Chat app settings

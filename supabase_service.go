@@ -245,6 +245,48 @@ func (s *SupabaseService) UpdateUser(id string, updates map[string]interface{}) 
 	return &updatedUsers[0], nil
 }
 
+// GetUsersExcluding gets all users except the specified user ID, with pagination
+func (s *SupabaseService) GetUsersExcluding(excludeUserID string, limit int) ([]User, error) {
+	if limit <= 0 {
+		limit = 10 // Default limit
+	}
+	
+	url := fmt.Sprintf("%s/rest/v1/users?id=neq.%s&limit=%d", s.url, excludeUserID, limit)
+	
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	req.Header.Set("apikey", s.key)
+	req.Header.Set("Authorization", "Bearer "+s.key)
+	req.Header.Set("Content-Type", "application/json")
+	
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	var users []User
+	err = json.Unmarshal(body, &users)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode users: %w", err)
+	}
+	
+	return users, nil
+}
+
 // UserExists checks if a user exists by wallet address only (usernames are not unique)
 func (s *SupabaseService) UserExists(username, walletAddress string) (bool, error) {
 	// Only check wallet address for uniqueness, not username
