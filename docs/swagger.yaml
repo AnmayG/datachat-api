@@ -1,0 +1,369 @@
+basePath: /
+definitions:
+  main.AuthResponse:
+    properties:
+      stream_token:
+        type: string
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/main.User'
+    type: object
+  main.ChatbotRequest:
+    properties:
+      channel_id:
+        type: string
+      message:
+        type: string
+      model:
+        description: '"gpt-3.5-turbo" or "gpt-4", defaults to gpt-3.5-turbo'
+        type: string
+      user_id:
+        type: string
+    required:
+    - channel_id
+    - message
+    - user_id
+    type: object
+  main.ChatbotResponse:
+    properties:
+      message_id:
+        type: string
+      response:
+        type: string
+    type: object
+  main.ErrorResponse:
+    properties:
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  main.LoginRequest:
+    properties:
+      username:
+        type: string
+      wallet_address:
+        type: string
+    type: object
+  main.Message:
+    properties:
+      channel_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      message_text:
+        type: string
+      message_type:
+        description: '''user'', ''assistant'', ''system'''
+        type: string
+      reply_to_id:
+        type: string
+      sender_id:
+        type: string
+      sender_username:
+        type: string
+      stream_message_id:
+        type: string
+      type:
+        description: '''text'', ''image'', etc.'
+        type: string
+    type: object
+  main.RegisterRequest:
+    properties:
+      bio:
+        type: string
+      name:
+        type: string
+      profile_pic_url:
+        type: string
+      username:
+        type: string
+      wallet_address:
+        type: string
+    type: object
+  main.StreamUserRequest:
+    properties:
+      id:
+        type: string
+      image:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+      username:
+        type: string
+    required:
+    - id
+    - name
+    - username
+    type: object
+  main.TokenRequest:
+    properties:
+      user_id:
+        type: string
+    required:
+    - user_id
+    type: object
+  main.TokenResponse:
+    properties:
+      token:
+        type: string
+      user_id:
+        type: string
+    type: object
+  main.User:
+    properties:
+      bio:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      profile_pic_url:
+        type: string
+      username:
+        type: string
+      wallet_address:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Go API backend for Stream Chat integration with user authentication
+    and Supabase database
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Social Messenger API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user by username or wallet address
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully authenticated
+          schema:
+            $ref: '#/definitions/main.AuthResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "401":
+          description: Authentication failed
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Stream token error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: User login
+      tags:
+      - Authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account
+      parameters:
+      - description: Registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully registered
+          schema:
+            $ref: '#/definitions/main.AuthResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "409":
+          description: Registration failed
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Stream token error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: User registration
+      tags:
+      - Authentication
+  /chatbot/chat:
+    post:
+      consumes:
+      - application/json
+      description: Send a message to the AI chatbot and get a response based on channel
+        history. Specify model in request body (gpt-3.5-turbo or gpt-4).
+      parameters:
+      - description: Chatbot request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.ChatbotRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: AI response generated
+          schema:
+            $ref: '#/definitions/main.ChatbotResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Chat with AI bot
+      tags:
+      - Chatbot
+  /messages/channel/{channel_id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve messages for a specific channel with pagination
+      parameters:
+      - description: Channel ID
+        in: path
+        name: channel_id
+        required: true
+        type: string
+      - default: 50
+        description: Number of messages to retrieve
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Channel messages
+          schema:
+            items:
+              $ref: '#/definitions/main.Message'
+            type: array
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get channel messages
+      tags:
+      - Messages
+  /stream/token:
+    post:
+      consumes:
+      - application/json
+      description: Generate a Stream Chat token for a user
+      parameters:
+      - description: Token generation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.TokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully generated token
+          schema:
+            $ref: '#/definitions/main.TokenResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Token generation failed
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Generate Stream Chat token
+      tags:
+      - Stream Chat
+  /stream/user:
+    post:
+      consumes:
+      - application/json
+      description: Create or update a user in Stream Chat
+      parameters:
+      - description: User creation/update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.StreamUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User created/updated successfully
+          schema:
+            properties:
+              message:
+                type: string
+              user_id:
+                type: string
+            type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Stream user creation failed
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Create or update Stream user
+      tags:
+      - Stream Chat
+securityDefinitions:
+  Bearer:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
