@@ -174,6 +174,118 @@
                 }
             }
         },
+        "/handshake/active": {
+            "get": {
+                "description": "Get list of users currently connected to handshake events",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handshake"
+                ],
+                "summary": "Get active users",
+                "responses": {
+                    "200": {
+                        "description": "List of active users",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "users": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/handshake/send": {
+            "post": {
+                "description": "Send a handshake event to specific user or broadcast to all",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Handshake"
+                ],
+                "summary": "Send handshake",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID of sender",
+                        "name": "uid",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "description": "Handshake request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/main.HandshakeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Handshake sent successfully",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/handshake/ws": {
+            "get": {
+                "description": "Establish WebSocket connection to receive real-time handshake events",
+                "tags": [
+                    "Handshake"
+                ],
+                "summary": "Connect to handshake WebSocket",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "uid",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/messages/channel/{channel_id}": {
             "get": {
                 "description": "Retrieve messages for a specific channel with pagination",
@@ -398,6 +510,26 @@
                     "type": "string"
                 },
                 "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.HandshakeRequest": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "message": {
+                    "description": "Optional message",
+                    "type": "string"
+                },
+                "to_uid": {
+                    "description": "Specific user or empty for broadcast",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"wave\", \"high_five\", \"fist_bump\", etc.",
                     "type": "string"
                 }
             }

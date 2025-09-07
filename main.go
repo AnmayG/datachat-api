@@ -96,11 +96,18 @@ func main() {
 	// Initialize auth service with Supabase
 	authService := NewAuthService(os.Getenv("JWT_SECRET"), supabaseService)
 
+	// Initialize pub/sub service for handshakes
+	pubsubService := NewPubSubService()
+
+	// Initialize handshake service
+	handshakeService := NewHandshakeService(pubsubService)
+
 	// Initialize handlers
 	authHandler := NewAuthHandler(authService, streamService)
 	streamHandler := NewStreamHandler(streamService, authService)
 	chatbotHandler := NewChatbotHandler(messageService, chatGPTService, authService, streamService)
 	webhookHandler := NewWebhookHandler(chatGPTService, streamService)
+	handshakeHandler := NewHandshakeHandler(handshakeService, pubsubService)
 
 	// Setup router
 	r := gin.Default()
@@ -140,6 +147,36 @@ func main() {
 	// Auth routes
 	r.POST("/auth/login", authHandler.Login)
 	r.POST("/auth/register", authHandler.Register)
+
+	// Handshake routes
+	// @Summary Send handshake
+	// @Description Send a handshake event to specific user or broadcast to all
+	// @Tags Handshake
+	// @Accept json
+	// @Produce json
+	// @Param uid query string true "User ID of sender"
+	// @Param request body HandshakeRequest true "Handshake request"
+	// @Success 200 {object} object{message=string} "Handshake sent successfully"
+	// @Failure 400 {object} ErrorResponse "Invalid request"
+	// @Router /handshake/send [post]
+	r.POST("/handshake/send", handshakeHandler.SendHandshake)
+
+	// @Summary Connect to handshake WebSocket
+	// @Description Establish WebSocket connection to receive real-time handshake events
+	// @Tags Handshake
+	// @Param uid query string true "User ID"
+	// @Success 101 {string} string "Switching Protocols"
+	// @Failure 400 {object} ErrorResponse "Invalid request"
+	// @Router /handshake/ws [get]
+	r.GET("/handshake/ws", handshakeHandler.WebSocketConnect)
+
+	// @Summary Get active users
+	// @Description Get list of users currently connected to handshake events
+	// @Tags Handshake
+	// @Produce json
+	// @Success 200 {object} object{users=[]string} "List of active users"
+	// @Router /handshake/active [get]
+	r.GET("/handshake/active", handshakeHandler.GetActiveUsers)
 
 	// Stream token routes
 	// @Summary Generate Stream token

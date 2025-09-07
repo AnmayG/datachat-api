@@ -231,3 +231,19 @@ type WebhookResponse struct {
 	Action      string             `json:"action,omitempty"`
 	Description string             `json:"description,omitempty"`
 }
+
+// HandshakeEvent represents a handshake event to be broadcast
+type HandshakeEvent struct {
+	Type      string    `json:"type"`       // "handshake_sent", "handshake_received", etc.
+	FromUID   string    `json:"from_uid"`   // User who initiated the handshake
+	ToUID     string    `json:"to_uid,omitempty"` // Target user (optional for broadcasts)
+	Message   string    `json:"message,omitempty"` // Optional message
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// HandshakeRequest represents a request to send a handshake
+type HandshakeRequest struct {
+	Type    string `json:"type" binding:"required"`    // "wave", "high_five", "fist_bump", etc.
+	ToUID   string `json:"to_uid,omitempty"`           // Specific user or empty for broadcast
+	Message string `json:"message,omitempty"`          // Optional message
+}

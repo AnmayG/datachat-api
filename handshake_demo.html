@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handshake Pub/Sub Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        input, select, button {
+            margin: 5px;
+            padding: 8px;
+        }
+        #events {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .event {
+            margin-bottom: 10px;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            background-color: white;
+        }
+        .connected {
+            color: green;
+        }
+        .disconnected {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Handshake Pub/Sub System Demo</h1>
+    
+    <div class="container">
+        <h3>Connection</h3>
+        <input type="text" id="userId" placeholder="Enter your user ID" value="user1">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <span id="status" class="disconnected">Disconnected</span>
+    </div>
+
+    <div class="container">
+        <h3>Send Handshake</h3>
+        <select id="handshakeType">
+            <option value="wave">👋 Wave</option>
+            <option value="high_five">🙏 High Five</option>
+            <option value="fist_bump">👊 Fist Bump</option>
+            <option value="peace">✌️ Peace</option>
+            <option value="thumbs_up">👍 Thumbs Up</option>
+        </select>
+        <input type="text" id="targetUser" placeholder="Target user ID (leave empty for broadcast)">
+        <input type="text" id="message" placeholder="Optional message">
+        <button onclick="sendHandshake()">Send Handshake</button>
+    </div>
+
+    <div class="container">
+        <h3>Active Users</h3>
+        <button onclick="getActiveUsers()">Refresh Active Users</button>
+        <div id="activeUsers"></div>
+    </div>
+
+    <div class="container">
+        <h3>Live Events</h3>
+        <button onclick="clearEvents()">Clear Events</button>
+        <div id="events"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        let userId = null;
+
+        function connect() {
+            userId = document.getElementById('userId').value;
+            if (!userId) {
+                alert('Please enter a user ID');
+                return;
+            }
+
+            // For local development, adjust the URL as needed
+            const wsUrl = `ws://localhost:8080/handshake/ws?uid=${userId}`;
+            
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function(event) {
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').className = 'connected';
+                addEvent('System', `Connected as ${userId}`, 'system');
+            };
+            
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                addEvent('Handshake', `${data.type} from ${data.from_uid}${data.message ? ': ' + data.message : ''}`, 'handshake');
+            };
+            
+            socket.onclose = function(event) {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'disconnected';
+                addEvent('System', 'Disconnected', 'system');
+            };
+            
+            socket.onerror = function(error) {
+                addEvent('Error', error.toString(), 'error');
+            };
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.close();
+                socket = null;
+            }
+        }
+
+        function sendHandshake() {
+            if (!userId) {
+                alert('Please connect first');
+                return;
+            }
+
+            const type = document.getElementById('handshakeType').value;
+            const targetUser = document.getElementById('targetUser').value;
+            const message = document.getElementById('message').value;
+
+            const payload = {
+                type: type,
+                to_uid: targetUser || undefined,
+                message: message || undefined
+            };
+
+            fetch(`http://localhost:8080/handshake/send?uid=${userId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    addEvent('Sent', `${type} to ${targetUser || 'all users'}${message ? ': ' + message : ''}`, 'sent');
+                } else {
+                    addEvent('Error', data.error || 'Failed to send handshake', 'error');
+                }
+            })
+            .catch(error => {
+                addEvent('Error', error.toString(), 'error');
+            });
+        }
+
+        function getActiveUsers() {
+            fetch('http://localhost:8080/handshake/active')
+            .then(response => response.json())
+            .then(data => {
+                const activeUsersDiv = document.getElementById('activeUsers');
+                activeUsersDiv.innerHTML = '<strong>Active Users:</strong> ' + 
+                    (data.users && data.users.length > 0 ? data.users.join(', ') : 'None');
+            })
+            .catch(error => {
+                addEvent('Error', error.toString(), 'error');
+            });
+        }
+
+        function addEvent(type, content, category) {
+            const eventsDiv = document.getElementById('events');
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            eventDiv.innerHTML = `<strong>[${timestamp}] ${type}:</strong> ${content}`;
+            
+            if (category === 'error') {
+                eventDiv.style.borderLeftColor = '#dc3545';
+            } else if (category === 'handshake') {
+                eventDiv.style.borderLeftColor = '#28a745';
+            } else if (category === 'sent') {
+                eventDiv.style.borderLeftColor = '#ffc107';
+            }
+            
+            eventsDiv.appendChild(eventDiv);
+            eventsDiv.scrollTop = eventsDiv.scrollHeight;
+        }
+
+        function clearEvents() {
+            document.getElementById('events').innerHTML = '';
+        }
+
+        // Auto-refresh active users every 5 seconds
+        setInterval(getActiveUsers, 5000);
+    </script>
+</body>
+</html>

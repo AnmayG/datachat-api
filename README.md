@@ -1,6 +1,128 @@
-# Social Messenger Backend
+# DataChat API - Social Messenger Backend
 
-Go API backend for Stream Chat integration with user authentication and Supabase database.
+A Go-based API backend with Stream Chat integration, user authentication, and **real-time handshake pub/sub system**.
+
+## 🚀 New Feature: Handshake Pub/Sub System
+
+This API now includes a simple, lightweight pub/sub system for broadcasting handshake events between users in real-time.
+
+### Key Features
+
+- ✅ **Zero Authentication**: Takes UIDs on trust (no auth required)
+- ✅ **Real-time WebSocket connections** for instant event delivery
+- ✅ **Broadcast or targeted messaging** (send to all users or specific user)
+- ✅ **In-memory pub/sub** (simple and fast)
+- ✅ **Multiple handshake types** (wave, high_five, fist_bump, etc.)
+- ✅ **Connection management** with automatic cleanup
+- ✅ **Active users tracking**
+
+### API Endpoints
+
+#### 1. WebSocket Connection
+```
+GET /handshake/ws?uid={user_id}
+```
+Establishes a WebSocket connection to receive real-time handshake events.
+
+#### 2. Send Handshake
+```
+POST /handshake/send?uid={sender_uid}
+Content-Type: application/json
+
+{
+  "type": "wave",           // required: handshake type
+  "to_uid": "user123",      // optional: specific user (leave empty for broadcast)
+  "message": "Hello!"       // optional: message
+}
+```
+
+#### 3. Get Active Users
+```
+GET /handshake/active
+```
+Returns list of currently connected users.
+
+### Event Format
+
+When a handshake is sent, subscribers receive this JSON event:
+
+```json
+{
+  "type": "wave",
+  "from_uid": "sender123",
+  "to_uid": "receiver456",    // optional
+  "message": "Hello there!",  // optional
+  "timestamp": "2025-09-07T05:49:32.123Z"
+}
+```
+
+### Usage Examples
+
+#### Connect via WebSocket (JavaScript)
+```javascript
+const socket = new WebSocket('ws://localhost:8080/handshake/ws?uid=myuser123');
+
+socket.onmessage = function(event) {
+    const handshake = JSON.parse(event.data);
+    console.log(`${handshake.type} from ${handshake.from_uid}!`);
+};
+```
+
+#### Send a Handshake (curl)
+```bash
+# Broadcast to all users
+curl -X POST "http://localhost:8080/handshake/send?uid=myuser123" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"wave","message":"Hello everyone!"}'
+
+# Send to specific user
+curl -X POST "http://localhost:8080/handshake/send?uid=myuser123" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"high_five","to_uid":"friend456","message":"Great job!"}'
+```
+
+#### Get Active Users
+```bash
+curl -X GET "http://localhost:8080/handshake/active"
+# Response: {"users":["user1","user2","user3"]}
+```
+
+### Available Handshake Types
+
+- `wave` - 👋 Wave
+- `high_five` - 🙏 High Five  
+- `fist_bump` - 👊 Fist Bump
+- `peace` - ✌️ Peace
+- `thumbs_up` - 👍 Thumbs Up
+- Or any custom string
+
+### Demo
+
+Open `handshake_demo.html` in your browser for a live interactive demo!
+
+### Architecture
+
+```
+┌─────────────────┐    WebSocket    ┌─────────────────────┐
+│   User Browser  │◄───────────────►│   PubSubService     │
+└─────────────────┘                 │                     │
+                                    │ ┌─────────────────┐ │
+┌─────────────────┐    HTTP POST    │ │ In-Memory Store │ │
+│   User App      │────────────────►│ │  uid -> [conn]  │ │
+└─────────────────┘                 │ └─────────────────┘ │
+                                    └─────────────────────┘
+                                              │
+                                              ▼
+                                    ┌─────────────────────┐
+                                    │ HandshakeService    │
+                                    │ - SendHandshake()   │
+                                    │ - GetActiveUsers()  │
+                                    └─────────────────────┘
+```
+
+---
+
+## Original Setup Instructions
 
 ## Setup
 

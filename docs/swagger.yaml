@@ -39,6 +39,20 @@ definitions:
       message:
         type: string
     type: object
+  main.HandshakeRequest:
+    properties:
+      message:
+        description: Optional message
+        type: string
+      to_uid:
+        description: Specific user or empty for broadcast
+        type: string
+      type:
+        description: '"wave", "high_five", "fist_bump", etc.'
+        type: string
+    required:
+    - type
+    type: object
   main.LoginRequest:
     properties:
       username:
@@ -250,6 +264,79 @@ paths:
       summary: Chat with AI bot
       tags:
       - Chatbot
+  /handshake/active:
+    get:
+      description: Get list of users currently connected to handshake events
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of active users
+          schema:
+            properties:
+              users:
+                items:
+                  type: string
+                type: array
+            type: object
+      summary: Get active users
+      tags:
+      - Handshake
+  /handshake/send:
+    post:
+      consumes:
+      - application/json
+      description: Send a handshake event to specific user or broadcast to all
+      parameters:
+      - description: User ID of sender
+        in: query
+        name: uid
+        required: true
+        type: string
+      - description: Handshake request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.HandshakeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Handshake sent successfully
+          schema:
+            properties:
+              message:
+                type: string
+            type: object
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Send handshake
+      tags:
+      - Handshake
+  /handshake/ws:
+    get:
+      description: Establish WebSocket connection to receive real-time handshake events
+      parameters:
+      - description: User ID
+        in: query
+        name: uid
+        required: true
+        type: string
+      responses:
+        "101":
+          description: Switching Protocols
+          schema:
+            type: string
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Connect to handshake WebSocket
+      tags:
+      - Handshake
   /messages/channel/{channel_id}:
     get:
       consumes:
