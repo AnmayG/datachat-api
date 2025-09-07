@@ -282,9 +282,9 @@ func (s *StreamService) CreateUserMatchChannel(ctx context.Context, user1ID, use
 	// Create channel ID: match-{user1ID}-{user2ID} (sorted for consistency)
 	var channelID string
 	if user1ID < user2ID {
-		channelID = "match-" + user1ID + "-" + user2ID
+		channelID = "match-" + user1ID
 	} else {
-		channelID = "match-" + user2ID + "-" + user1ID
+		channelID = "match-" + user2ID
 	}
 
 	// Create the channel with both users as members

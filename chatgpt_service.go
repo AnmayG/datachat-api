@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/sashabaranov/go-openai"
@@ -283,73 +284,24 @@ func (s *ChatGPTService) GenerateProfileConfirmationMessage(profile *ProfileSetu
 // RecommendUser finds and returns a user recommendation based on preferences
 func (s *ChatGPTService) RecommendUser(preferences string, currentUserID string, supabaseService *SupabaseService) (*User, error) {
 	// Get all users except current user
+	log.Printf("[CHATGPT] Fetching users excluding current user ID: %s", currentUserID)
 	users, err := supabaseService.GetUsersExcluding(currentUserID, 20)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
 
+	log.Printf("Found %d users for recommendation", len(users))
 	if len(users) == 0 {
 		return nil, fmt.Errorf("no other users found")
 	}
 
-	// Use ChatGPT to analyze user profiles and find the best match
-	systemPrompt := fmt.Sprintf(`You are a matchmaking AI. Based on the user's preferences "%s", analyze the following user profiles and select the BEST match.
-
-Consider:
-1. Compatibility with stated preferences
-2. Shared interests from bios
-3. Overall personality fit
-
-Return ONLY the user's ID (nothing else) of the best match. If no good match exists, return "NONE".`, preferences)
-
-	// Format user profiles for analysis
-	profilesText := "Available users:\n"
-	for _, user := range users {
-		bio := user.Bio
-		if bio == "" {
-			bio = "No bio provided"
-		}
-		profilesText += fmt.Sprintf("ID: %s | Name: %s | Bio: %s\n", user.ID, user.Name, bio)
+	// print out all of the users
+	for _, u := range users {
+		log.Printf("User: ID=%s, Name=%s, Bio=%s", u.ID, u.Name, u.Bio)
 	}
 
-	request := openai.ChatCompletionRequest{
-		Model: openai.GPT3Dot5Turbo,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: systemPrompt,
-			},
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: profilesText,
-			},
-		},
-		MaxTokens:   100,
-		Temperature: 0.3,
-	}
-
-	resp, err := s.client.CreateChatCompletion(context.Background(), request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get recommendation: %w", err)
-	}
-
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no recommendation returned")
-	}
-
-	recommendedID := strings.TrimSpace(resp.Choices[0].Message.Content)
-	if recommendedID == "NONE" || recommendedID == "" {
-		return nil, fmt.Errorf("no suitable match found")
-	}
-
-	// Find and return the recommended user
-	for _, user := range users {
-		if user.ID == recommendedID {
-			return &user, nil
-		}
-	}
-
-	return nil, fmt.Errorf("recommended user not found")
+	// Simply return the first user
+	return &users[0], nil
 }
 
 // GenerateMatchResponse creates a user recommendation message
@@ -365,7 +317,7 @@ func (s *ChatGPTService) GenerateMatchResponse(recommendedUser *User) string {
 
 %s
 
-Would you like me to connect you with %s? Just say "yes" and I'll create a chat between you two!`, 
+Would you like me to connect you with %s? Just say "yes" and I'll create a chat between you two!`,
 		recommendedUser.Name, bio, recommendedUser.Name)
 }
 
