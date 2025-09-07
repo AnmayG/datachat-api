@@ -54,15 +54,13 @@ type User struct {
 
 // LoginRequest represents the login request payload
 type LoginRequest struct {
-	Username      string `json:"username,omitempty"`
-	WalletAddress string `json:"wallet_address,omitempty"`
+	WalletAddress string `json:"wallet_address" binding:"required"`
 }
 
 // RegisterRequest represents the registration request payload
 type RegisterRequest struct {
-	Username      string `json:"username,omitempty"`
 	Name          string `json:"name,omitempty"`
-	WalletAddress string `json:"wallet_address,omitempty"`
+	WalletAddress string `json:"wallet_address" binding:"required"`
 	ProfilePicURL string `json:"profile_pic_url,omitempty"`
 	Bio           string `json:"bio,omitempty"`
 }

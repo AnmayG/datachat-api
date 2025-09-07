@@ -353,6 +353,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/stream/channels/{user_id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "Get all channels that a user is a member of",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Stream Chat"
+                ],
+                "summary": "Get user channels",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User channels",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.StreamChannel"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Failed to retrieve channels",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stream/token": {
             "post": {
                 "description": "Generate a Stream Chat token for a user",
@@ -542,10 +597,10 @@ const docTemplate = `{
         },
         "main.LoginRequest": {
             "type": "object",
+            "required": [
+                "wallet_address"
+            ],
             "properties": {
-                "username": {
-                    "type": "string"
-                },
                 "wallet_address": {
                     "type": "string"
                 }
@@ -590,6 +645,9 @@ const docTemplate = `{
         },
         "main.RegisterRequest": {
             "type": "object",
+            "required": [
+                "wallet_address"
+            ],
             "properties": {
                 "bio": {
                     "type": "string"
@@ -600,10 +658,54 @@ const docTemplate = `{
                 "profile_pic_url": {
                     "type": "string"
                 },
-                "username": {
+                "wallet_address": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.StreamChannel": {
+            "type": "object",
+            "properties": {
+                "cid": {
                     "type": "string"
                 },
-                "wallet_address": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "id": {
+                    "type": "string"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/main.StreamUser"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.StreamUser": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "image": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "online": {
+                    "type": "boolean"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

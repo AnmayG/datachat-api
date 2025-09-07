@@ -31,43 +31,23 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-// Login authenticates a user (simplified for demo)
+// Login authenticates a user by wallet address only
 func (a *AuthService) Login(req *LoginRequest) (*User, string, error) {
-	var user *User
-	var err error
-	
-	// Try to find user by username or wallet address
-	if req.Username != "" {
-		user, err = a.supabaseService.GetUserByUsername(req.Username)
-	} else if req.WalletAddress != "" {
-		user, err = a.supabaseService.GetUserByWallet(req.WalletAddress)
-	} else {
-		return nil, "", errors.New("username or wallet address required")
+	if req.WalletAddress == "" {
+		return nil, "", errors.New("wallet address required")
 	}
 	
+	// Look up user by wallet address
+	user, err := a.supabaseService.GetUserByWallet(req.WalletAddress)
 	if err != nil {
 		return nil, "", err
 	}
 	
-	// If user doesn't exist, auto-create for demo purposes
+	// If user doesn't exist, auto-create with wallet address
 	if user == nil {
-		// Generate defaults if not provided
-		username := req.Username
-		if username == "" && req.WalletAddress != "" {
-			username = "user_" + req.WalletAddress[:8]
-		} else if username == "" {
-			return nil, "", errors.New("username or wallet address required")
-		}
-		
-		name := username
-		if req.WalletAddress != "" {
-			name = "Algorand User (" + req.WalletAddress[:8] + "...)"
-		}
-
 		newUser := &User{
-			Username:      username,
-			Name:          name,
 			WalletAddress: req.WalletAddress,
+			Name:          "User", // Simple default name
 		}
 		
 		user, err = a.supabaseService.CreateUser(newUser)
@@ -86,35 +66,27 @@ func (a *AuthService) Login(req *LoginRequest) (*User, string, error) {
 
 // Register creates a new user account
 func (a *AuthService) Register(req *RegisterRequest) (*User, string, error) {
-	// Generate defaults if not provided
-	username := req.Username
-	if username == "" && req.WalletAddress != "" {
-		username = "user_" + req.WalletAddress[:8]
-	} else if username == "" {
-		return nil, "", errors.New("username or wallet address required")
+	if req.WalletAddress == "" {
+		return nil, "", errors.New("wallet address required")
 	}
 	
-	name := req.Name
-	if name == "" {
-		if req.WalletAddress != "" {
-			name = "Algorand User (" + req.WalletAddress[:8] + "...)"
-		} else {
-			name = username
-		}
-	}
-
-	// Check if user already exists
-	exists, err := a.supabaseService.UserExists(username, req.WalletAddress)
+	// Check if user already exists by wallet address only
+	existingUser, err := a.supabaseService.GetUserByWallet(req.WalletAddress)
 	if err != nil {
 		return nil, "", err
 	}
 	
-	if exists {
+	if existingUser != nil {
 		return nil, "", errors.New("user already exists")
 	}
 
+	// Set defaults
+	name := req.Name
+	if name == "" {
+		name = "User"
+	}
+
 	user := &User{
-		Username:      username,
 		Name:          name,
 		WalletAddress: req.WalletAddress,
 		ProfilePicURL: req.ProfilePicURL,

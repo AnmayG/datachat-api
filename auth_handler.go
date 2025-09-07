@@ -42,7 +42,18 @@ func (h *AuthHandler) createAuthResponse(c *gin.Context, user *User, token strin
 	if statusCode == http.StatusCreated {
 		if _, err := h.streamService.CreateAIChatChannel(c.Request.Context(), user.ID); err != nil {
 			// Log error but don't fail the request
-			c.Header("X-Stream-Warning", "Failed to create AI chat channel")
+			c.Header("X-Stream-Warning", "Failed to create AI chat channel: "+err.Error())
+		}
+	} else if statusCode == http.StatusOK {
+		// For existing users logging in, check if they have an AI channel
+		hasAIChannel, err := h.streamService.HasAIChannel(c.Request.Context(), user.ID)
+		if err != nil {
+			c.Header("X-Stream-Warning", "Failed to check AI channels: "+err.Error())
+		} else if !hasAIChannel {
+			// User doesn't have an AI channel, create one
+			if _, err := h.streamService.CreateAIChatChannel(c.Request.Context(), user.ID); err != nil {
+				c.Header("X-Stream-Warning", "Failed to create AI chat channel for existing user: "+err.Error())
+			}
 		}
 	}
 
@@ -76,7 +87,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 	
 	// Debug logging
-	println("Login request - Username:", req.Username, "WalletAddress:", req.WalletAddress)
+	println("Login request - WalletAddress:", req.WalletAddress)
 
 	// Authenticate user
 	user, token, err := h.authService.Login(&req)

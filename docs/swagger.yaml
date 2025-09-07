@@ -55,10 +55,10 @@ definitions:
     type: object
   main.LoginRequest:
     properties:
-      username:
-        type: string
       wallet_address:
         type: string
+    required:
+    - wallet_address
     type: object
   main.Message:
     properties:
@@ -93,9 +93,40 @@ definitions:
         type: string
       profile_pic_url:
         type: string
-      username:
-        type: string
       wallet_address:
+        type: string
+    required:
+    - wallet_address
+    type: object
+  main.StreamChannel:
+    properties:
+      cid:
+        type: string
+      config:
+        additionalProperties: true
+        type: object
+      id:
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/main.StreamUser'
+        type: array
+      type:
+        type: string
+    type: object
+  main.StreamUser:
+    properties:
+      id:
+        type: string
+      image:
+        type: string
+      name:
+        type: string
+      online:
+        type: boolean
+      role:
+        type: string
+      username:
         type: string
     type: object
   main.StreamUserRequest:
@@ -378,6 +409,41 @@ paths:
       summary: Get channel messages
       tags:
       - Messages
+  /stream/channels/{user_id}:
+    get:
+      description: Get all channels that a user is a member of
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User channels
+          schema:
+            items:
+              $ref: '#/definitions/main.StreamChannel'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Failed to retrieve channels
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Get user channels
+      tags:
+      - Stream Chat
   /stream/token:
     post:
       consumes:

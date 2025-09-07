@@ -202,6 +202,19 @@ func main() {
 	// @Failure 401 {object} ErrorResponse "Unauthorized"
 	// @Router /stream/user [post]
 	r.POST("/stream/user", streamHandler.CreateOrUpdateUser)
+	
+	// @Summary Get user channels
+	// @Description Get all channels that a user is a member of
+	// @Tags Stream
+	// @Produce json
+	// @Security Bearer
+	// @Param user_id path string true "User ID"
+	// @Success 200 {array} StreamChannel "User channels"
+	// @Failure 401 {object} ErrorResponse "Unauthorized"
+	// @Failure 404 {object} ErrorResponse "User not found"
+	// @Failure 500 {object} ErrorResponse "Failed to retrieve channels"
+	// @Router /stream/channels/{user_id} [get]
+	r.GET("/stream/channels/:user_id", streamHandler.GetUserChannels)
 
 	// Chatbot routes
 	// @Summary Chat with bot

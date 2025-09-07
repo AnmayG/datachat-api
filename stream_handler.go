@@ -214,3 +214,41 @@ func (h *StreamHandler) RevokeUserToken(c *gin.Context) {
 		"user_id": req.UserID,
 	})
 }
+
+// GetUserChannels handles requests to get all channels a user is part of
+// @Summary Get user channels
+// @Description Get all channels that a user is a member of
+// @Tags Stream Chat
+// @Produce json
+// @Security Bearer
+// @Param user_id path string true "User ID"
+// @Success 200 {array} StreamChannel "User channels"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Failed to retrieve channels"
+// @Router /stream/channels/{user_id} [get]
+func (h *StreamHandler) GetUserChannels(c *gin.Context) {
+	userID := c.Param("user_id")
+	
+	// Validate user exists in our system
+	_, err := h.authService.GetUser(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error:   "user_not_found",
+			Message: "User does not exist in the system",
+		})
+		return
+	}
+
+	// Get user channels from Stream
+	channels, err := h.streamService.GetUserChannels(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "channels_retrieval_failed",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, channels)
+}

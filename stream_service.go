@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
+	"os"
 	"time"
 
 	stream "github.com/GetStream/stream-chat-go/v5"
@@ -21,10 +24,15 @@ func NewStreamService(apiKey, secret string) *StreamService {
 		panic("Failed to initialize Stream client: " + err.Error())
 	}
 
-	return &StreamService{
+	service := &StreamService{
 		client: client,
 		apiKey: apiKey,
 	}
+
+	// Configure webhook on initialization
+	service.configureWebhook()
+
+	return service
 }
 
 // CreateToken generates a Stream Chat token for a user
@@ -40,13 +48,21 @@ func (s *StreamService) CreateToken(userID string, expiration *time.Time) (strin
 // CreateOrUpdateUser creates or updates a user in Stream Chat
 func (s *StreamService) CreateOrUpdateUser(ctx context.Context, user *User) error {
 	streamUser := &stream.User{
-		ID:   user.ID,
-		Name: user.Name,
-		Role: "user",
+		ID:     user.ID,
+		Name:   user.Name,
+		Role:   "user",
+		Online: true, // Set user as online when they login
 	}
 
 	if user.ProfilePicURL != "" {
 		streamUser.Image = user.ProfilePicURL
+	}
+
+	// Add wallet address to extra data
+	if user.WalletAddress != "" {
+		streamUser.ExtraData = map[string]interface{}{
+			"wallet_address": user.WalletAddress,
+		}
 	}
 
 	_, err := s.client.UpsertUser(ctx, streamUser)
@@ -101,18 +117,27 @@ func (s *StreamService) CreateAIChatChannel(ctx context.Context, userID string) 
 		Name: "AI Assistant",
 		Role: "admin",
 	}
-	s.client.UpsertUser(ctx, botUser)
+	_, err := s.client.UpsertUser(ctx, botUser)
+	if err != nil {
+		return "", fmt.Errorf("failed to create bot user: %w", err)
+	}
 	
 	// Create channel ID: ai-chat-{userID}
 	channelID := "ai-chat-" + userID
+	
+	// Create the channel with both user and AI assistant as members
+	_, err = s.client.CreateChannel(ctx, "messaging", channelID, userID, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create channel: %w", err)
+	}
+	
+	// Get channel reference
 	channel := s.client.Channel("messaging", channelID)
 	
-	// Create private channel with user and AI bot  
-	_, err := channel.Update(ctx, map[string]interface{}{
-		"members": []string{userID, "ai-assistant"},
-	}, nil)
+	// Add both user and AI assistant as members
+	_, err = channel.AddMembers(ctx, []string{userID, "ai-assistant"})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to add members to channel: %w", err)
 	}
 	
 	// Send welcome message
@@ -121,7 +146,10 @@ func (s *StreamService) CreateAIChatChannel(ctx context.Context, userID string) 
 		User: &stream.User{ID: "ai-assistant"},
 	}
 	
-	channel.SendMessage(ctx, welcomeMsg, "ai-assistant")
+	_, err = channel.SendMessage(ctx, welcomeMsg, "ai-assistant")
+	if err != nil {
+		return "", fmt.Errorf("failed to send welcome message: %w", err)
+	}
 	
 	return channelID, nil
 }
@@ -130,8 +158,29 @@ func (s *StreamService) CreateAIChatChannel(ctx context.Context, userID string) 
 func (s *StreamService) SendMessage(cid, text, senderID string) error {
 	ctx := context.Background()
 	
+	// Parse CID to extract channel type and ID
+	// CID format is "type:id" (e.g., "messaging:ai-chat-uuid")
+	var channelType, channelID string
+	if colonIndex := len(cid); colonIndex > 0 {
+		for i, r := range cid {
+			if r == ':' {
+				channelType = cid[:i]
+				channelID = cid[i+1:]
+				break
+			}
+		}
+	}
+	
+	// Default to messaging if no type found
+	if channelType == "" {
+		channelType = "messaging"
+		channelID = cid
+	}
+	
+	log.Printf("[STREAM] Sending message to channel type: %s, ID: %s", channelType, channelID)
+	
 	// Get the channel
-	channel := s.client.Channel("messaging", cid)
+	channel := s.client.Channel(channelType, channelID)
 	
 	// Create bot user if doesn't exist
 	botUser := &stream.User{
@@ -148,5 +197,98 @@ func (s *StreamService) SendMessage(cid, text, senderID string) error {
 	}
 	
 	_, err := channel.SendMessage(ctx, message, senderID)
+	if err != nil {
+		log.Printf("[STREAM] Failed to send message: %v", err)
+	} else {
+		log.Printf("[STREAM] Message sent successfully to %s:%s", channelType, channelID)
+	}
 	return err
+}
+
+// GetUserChannels retrieves all channels that a user is a member of
+func (s *StreamService) GetUserChannels(ctx context.Context, userID string) ([]StreamChannel, error) {
+	// Query channels where the user is a member
+	channels, err := s.client.QueryChannels(ctx, &stream.QueryOption{
+		Filter: map[string]interface{}{
+			"members": map[string]interface{}{
+				"$in": []string{userID},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to our StreamChannel type
+	var userChannels []StreamChannel
+	for _, channel := range channels.Channels {
+		streamChannel := StreamChannel{
+			ID:   channel.ID,
+			Type: channel.Type,
+			CID:  channel.CID,
+		}
+		
+		// Add members if available
+		if len(channel.Members) > 0 {
+			for _, member := range channel.Members {
+				streamChannel.Members = append(streamChannel.Members, StreamUser{
+					ID:     member.User.ID,
+					Name:   member.User.Name,
+					Image:  member.User.Image,
+					Role:   member.User.Role,
+					Online: member.User.Online,
+				})
+			}
+		}
+		
+		userChannels = append(userChannels, streamChannel)
+	}
+
+	return userChannels, nil
+}
+
+// HasAIChannel checks if a user has any AI chat channels
+func (s *StreamService) HasAIChannel(ctx context.Context, userID string) (bool, error) {
+	// Try to query the specific AI channel for this user
+	aiChannelID := "ai-chat-" + userID
+	channels, err := s.client.QueryChannels(ctx, &stream.QueryOption{
+		Filter: map[string]interface{}{
+			"id": aiChannelID,
+			"members": map[string]interface{}{
+				"$in": []string{userID},
+			},
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	
+	return len(channels.Channels) > 0, nil
+}
+
+// configureWebhook configures the webhook URL in Stream Chat app settings
+func (s *StreamService) configureWebhook() {
+	webhookBaseURL := os.Getenv("WEBHOOK_BASE_URL")
+	if webhookBaseURL == "" {
+		log.Println("Warning: WEBHOOK_BASE_URL not set, skipping webhook configuration")
+		return
+	}
+
+	ctx := context.Background()
+	webhookURL := webhookBaseURL + "/webhooks/stream"
+
+	// Configure webhook using Stream's app settings
+	settings := &stream.AppSettings{
+		WebhookURL: webhookURL,
+	}
+	_, err := s.client.UpdateAppSettings(ctx, settings)
+	if err != nil {
+		log.Printf("Failed to configure webhook URL %s: %v", webhookURL, err)
+		log.Println("Note: Some tunnel URLs (like trycloudflare.com) may not be accepted by Stream Chat")
+		log.Println("For development, try using ngrok instead: https://ngrok.com/")
+		log.Println("For production, use a proper domain with valid SSL certificate")
+		return
+	}
+
+	log.Printf("Successfully configured webhook URL: %s", webhookURL)
 }
